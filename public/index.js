@@ -34,7 +34,7 @@ function loadPage(page) {
         console.log('open');
       };
 
-      const button = document.querySelector('.load');
+      const button = document.querySelector('.buttonContainer');
       if (data.pages <= page + 1) {
         hasMore = false;
         button.style.display = 'none';
