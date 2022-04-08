@@ -1,5 +1,5 @@
 const express = require('express');
-const { join, dirname } = require('path');
+const { join, dirname, resolve } = require('path');
 const { promisify } = require('util');
 const exec = promisify(require('child_process').exec);
 const { mkdir, access } = require('fs/promises');
@@ -54,7 +54,7 @@ async function processDir(inDir, outDir) {
     await mkdir(inDir, { recursive: true });
     await mkdir(outDir, { recursive: true });
 
-    console.log('Getting file list, this might take some time...');
+    console.log('Getting file list, this might take some time...\n');
     const files = glob.sync(inDir + '/**/*.CR2');
 
     let estTime = '???';
@@ -63,49 +63,67 @@ async function processDir(inDir, outDir) {
     for (let i = 0; i < files.length; i++) {
       const f = files[i];
       if (f.toLowerCase().indexOf('.cr2') !== -1) {
-        const outFile = f.replace('.CR2', '.jpg').replace(inDir, outDir + '/previews/');
-
         const progress = `${(((i + 1) / files.length) * 100).toFixed(1)}% [${i + 1}/${files.length}] (est ${estTime})`;
-        try {
-          await access(outFile);
-          console.log(`${progress} + ${f}`);
-        } catch (err) {
-          try {
-            const command = `exiftool -b -PreviewImage -w "${dirname(outFile)}/\%f.jpg" "${f}"`;
-            // console.log(command, '\n', dirname(outFile));
+        const start = Date.now();
 
-            if (process.stdout.clearLine) process.stdout.write(`${progress} ? ${f}`);
+        console.log(`${progress} ${f}`);
 
-            let start = Date.now();
-            await exec(command);
+        await generatePreview(f);
+        await generateThumbnail(f);
 
-            const diff = (Date.now() - start) * (files.length - i);
-            if (estTime === '???') avg = diff;
-            else avg = 0.95 * avg + 0.05 * diff;
+        const diff = (Date.now() - start) * (files.length - i);
+        if (estTime === '???') avg = diff;
+        else avg = 0.95 * avg + 0.05 * diff;
 
-            estTime = new Date(avg).toISOString().substring(11, 19);
-
-            if (process.stdout.clearLine) {
-              process.stdout.clearLine(0);
-              process.stdout.cursorTo(0);
-              process.stdout.write(`${progress} + ${f}\n`);
-            } else console.log(`${progress} + ${f}`);
-          } catch (err) {
-            if (process.stdout.clearLine) {
-              process.stdout.clearLine(0);
-              process.stdout.cursorTo(0);
-              process.stdout.write(`${progress} x ${f}\n`);
-            } else console.log(`${progress} x ${f}`);
-
-            console.error(err);
-          }
-        }
+        estTime = new Date(avg).toISOString().substring(11, 19);
       }
     }
   } catch (err) {
     console.error(err);
   }
 
-  console.log('Processing Complete!');
+  console.log('\nProcessing Complete!');
   processing = false;
+}
+
+async function generatePreview(f) {
+  const previewFile = resolve(f.replace('.CR2', '.jpg').replace(inDir, outDir + '/previews/'));
+
+  try {
+    await access(previewFile);
+    console.log(`  + ${previewFile}`);
+  } catch (err) {
+    try {
+      const command = `exiftool -b -PreviewImage -w "${dirname(previewFile)}/\%f.jpg" "${f}"`;
+      await exec(command);
+
+      console.log(`  + ${previewFile}`);
+    } catch (err) {
+      console.log(`  x ${previewFile}`);
+      // console.error(err);
+    }
+  }
+}
+
+async function generateThumbnail(f) {
+  const previewFile = resolve(f.replace('.CR2', '.jpg').replace(inDir, outDir + '/previews/'));
+  const thumbFile = resolve(previewFile.replace(outDir + '/previews/', outDir + '/thumbnails/'));
+
+  try {
+    await access(thumbFile);
+    console.log(`  + ${thumbFile}`);
+  } catch (err) {
+    // Just in case, make the output dir
+    await mkdir(dirname(thumbFile), { recursive: true });
+
+    try {
+      const command = `vipsthumbnail "${previewFile}" --size x300 -o "${dirname(thumbFile)}/\%s.jpg"`;
+      await exec(command);
+
+      console.log(`  + ${thumbFile}`);
+    } catch (err) {
+      console.log(`  x ${thumbFile}`);
+      // console.error(err);
+    }
+  }
 }
