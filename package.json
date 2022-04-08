@@ -1,0 +1,21 @@
+{
+  "name": "raw-gallery",
+  "version": "1.0.0",
+  "description": "A simple script to generate a gallery of raw photos",
+  "main": "index.js",
+  "scripts": {
+    "start": "nodemon",
+    "pm2": "pm2 start ecosystem.config.js"
+  },
+  "author": "Andrew McOlash",
+  "license": "MIT",
+  "dependencies": {
+    "cron": "^1.8.2",
+    "express": "^4.17.3",
+    "glob": "^7.2.0"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.15",
+    "prettier": "^2.6.2"
+  }
+}
