@@ -1,4 +1,6 @@
 let page = 1;
+let hasMore = true;
+let lastLoadTime = 0;
 let lastRoot;
 
 const server = window.location.origin;
@@ -7,6 +9,8 @@ const imageList = document.querySelector('.imageList');
 const lightboxName = 'gallery';
 
 function loadPage(page) {
+  console.log(`loadPage(${page})`);
+
   fetch(`${server}/images?page=${page}`)
     .then((res) => res.json())
     .then((data) => {
@@ -32,14 +36,17 @@ function loadPage(page) {
 
       const button = document.querySelector('.load');
       if (data.pages <= page + 1) {
+        hasMore = false;
         button.style.display = 'none';
       }
     });
 }
 
 function loadMore() {
-  page++;
-  loadPage(page);
+  if (hasMore) {
+    page++;
+    loadPage(page);
+  }
 }
 
 function createImage(f) {
@@ -56,4 +63,12 @@ function createImage(f) {
 
 window.addEventListener('load', function () {
   loadPage(page);
+});
+
+window.addEventListener('scroll', function () {
+  const scrollBottom = window.scrollY + window.innerHeight >= document.body.offsetHeight - 500;
+  if (scrollBottom && Date.now() - lastLoadTime > 1000) {
+    lastLoadTime = Date.now();
+    loadMore();
+  }
 });
