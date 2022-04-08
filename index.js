@@ -1,8 +1,8 @@
 const express = require('express');
-const { join, dirname, relative, resolve } = require('path');
+const { join, dirname, relative, resolve, extname } = require('path');
 const { promisify } = require('util');
 const exec = promisify(require('child_process').exec);
-const { mkdir, access } = require('fs/promises');
+const { mkdir, access, readdir } = require('fs/promises');
 const glob = require('glob');
 const { existsSync } = require('fs');
 
@@ -13,6 +13,7 @@ const importDir = '/media/sdb1/SD Card Imports/';
 const inDir = existsSync(importDir) ? importDir : process.argv[2] || join(__dirname, 'test');
 const outDir = process.argv[3] || join(__dirname, 'tmp');
 
+let rootDirs = [];
 let fileList = [];
 let processing = false;
 
@@ -38,18 +39,22 @@ app.listen(PORT);
 app.use(express.static('public'));
 app.use('/images', express.static(outDir));
 
-app.get('/images', (req, res) => {
+app.get('/imagelist', (req, res) => {
   const page = Math.max(1, req.query.page || 1);
   const limit = 50;
+  const filter = req.query.filter;
 
   const start = (page - 1) * limit;
   const end = page * limit;
 
+  const filtered = filter ? fileList.filter((f) => f.preview.indexOf(filter) !== -1) : fileList;
+
   const results = {
-    images: fileList.slice(start, end),
+    images: filtered.slice(start, end),
     start,
     end,
-    pages: Math.ceil(fileList.length / limit),
+    rootDirs,
+    pages: Math.ceil(filtered.length / limit),
   };
 
   res.send(results);
@@ -77,6 +82,8 @@ async function processDir(inDir, outDir) {
     files.reverse().forEach((f) => {
       fileList.push({ preview: relative(outDir, getPreviewFile(f)), thumbnail: relative(outDir, getThumbnailFile(f)) });
     });
+
+    rootDirs = (await readdir(inDir)).filter((f) => extname(f) === '');
 
     console.log('Starting batch processing\n');
 

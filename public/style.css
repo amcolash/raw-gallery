@@ -19,7 +19,7 @@ button {
   border-radius: 0.25rem;
 }
 
-.imageList {
+.root {
   padding: 1rem;
 }
 
@@ -31,5 +31,5 @@ button {
 .buttonContainer {
   display: flex;
   justify-content: center;
-  padding: 1rem;
+  padding-top: 2rem;
 }

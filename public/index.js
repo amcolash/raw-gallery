@@ -11,7 +11,10 @@ const lightboxName = 'gallery';
 function loadPage(page) {
   console.log(`loadPage(${page})`);
 
-  fetch(`${server}/images?page=${page}`)
+  const filterEl = document.querySelector('#filters');
+  const filter = filterEl.value;
+
+  fetch(`${server}/imagelist?page=${page}${filter !== 'undefined' ? `&filter=${filter}` : ''}`)
     .then((res) => res.json())
     .then((data) => {
       data.images.forEach((t) => {
@@ -29,6 +32,20 @@ function loadPage(page) {
         createImage(t);
       });
 
+      if (filterEl.childNodes.length === 0) {
+        const option = document.createElement('option');
+        option.text = 'All';
+        option.value = undefined;
+        filterEl.appendChild(option);
+
+        data.rootDirs.forEach((f) => {
+          const option = document.createElement('option');
+          option.text = f;
+          option.value = f;
+          filterEl.appendChild(option);
+        });
+      }
+
       refreshFsLightbox();
       fsLightboxInstances[lightboxName].props.onOpen = () => {
         console.log('open');
@@ -40,6 +57,15 @@ function loadPage(page) {
         button.style.display = 'none';
       }
     });
+}
+
+function updateFilter(e) {
+  page = 0;
+  hasMore = true;
+  lastRoot = undefined;
+  imageList.replaceChildren();
+
+  loadMore();
 }
 
 function loadMore() {
