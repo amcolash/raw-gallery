@@ -83,7 +83,7 @@ async function processDir(inDir, outDir) {
       fileList.push({ preview: relative(outDir, getPreviewFile(f)), thumbnail: relative(outDir, getThumbnailFile(f)) });
     });
 
-    rootDirs = (await readdir(inDir)).filter((f) => extname(f) === '');
+    rootDirs = (await readdir(inDir)).filter((f) => extname(f) === '').reverse();
 
     console.log('Starting batch processing\n');
 
