@@ -13,7 +13,7 @@ const importDir = '/media/sdb1/SD Card Imports/';
 const inDir = existsSync(importDir) ? importDir : process.argv[2] || join(__dirname, 'test');
 const outDir = process.argv[3] || join(__dirname, 'tmp');
 
-let fileList = { previews: [], thumbnails: [] };
+let fileList = [];
 let processing = false;
 
 const CronJob = require('cron').CronJob;
@@ -39,18 +39,17 @@ app.use(express.static('public'));
 app.use('/images', express.static(outDir));
 
 app.get('/images', (req, res) => {
-  const page = req.query.page || 1;
+  const page = Math.max(1, req.query.page || 1);
   const limit = 50;
 
   const start = (page - 1) * limit;
   const end = page * limit;
 
   const results = {
-    previews: fileList.previews.slice(start, end),
-    thumbnails: fileList.thumbnails.slice(start, end),
+    images: fileList.slice(start, end),
     start,
     end,
-    pages: Math.ceil(fileList.previews.length / limit),
+    pages: Math.ceil(fileList.length / limit),
   };
 
   res.send(results);
@@ -74,10 +73,9 @@ async function processDir(inDir, outDir) {
     const files = glob.sync(inDir + '/**/*.CR2');
 
     // Generate served file list, it is in reverse sorted order which is good with me and my file structure
-    fileList = { previews: [], thumbnails: [] };
+    fileList = [];
     files.reverse().forEach((f) => {
-      fileList.previews.push(relative(outDir, getPreviewFile(f)));
-      fileList.thumbnails.push(relative(outDir, getThumbnailFile(f)));
+      fileList.push({ preview: relative(outDir, getPreviewFile(f)), thumbnail: relative(outDir, getThumbnailFile(f)) });
     });
 
     console.log('Starting batch processing\n');

@@ -1,0 +1,14 @@
+body {
+  margin: 0;
+  background: #171717;
+  color: #fafafa;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+.imageList {
+  padding: 1rem;
+}
+
+img {
+  padding: 0.25rem;
+}
