@@ -1,5 +1,5 @@
 const express = require('express');
-const { join, dirname, resolve } = require('path');
+const { join, dirname, relative, resolve } = require('path');
 const { promisify } = require('util');
 const exec = promisify(require('child_process').exec);
 const { mkdir, access } = require('fs/promises');
@@ -13,11 +13,12 @@ const importDir = '/media/sdb1/SD Card Imports/';
 const inDir = existsSync(importDir) ? importDir : process.argv[2] || join(__dirname, 'test');
 const outDir = process.argv[3] || join(__dirname, 'tmp');
 
+let fileList = { previews: [], thumbnails: [] };
 let processing = false;
 
 const CronJob = require('cron').CronJob;
 const job = new CronJob(
-  '*/15 * * * *',
+  '*/5 * * * *',
   function () {
     console.log(`${new Date().toLocaleString()}: Scheduled cron processing`);
 
@@ -34,8 +35,25 @@ const PORT = process.env.PORT || 8080;
 
 const app = new express();
 app.listen(PORT);
-app.get('/', (req, res) => {
-  res.send('A-Ok');
+app.use(express.static('public'));
+app.use('/images', express.static(outDir));
+
+app.get('/images', (req, res) => {
+  const page = req.query.page || 1;
+  const limit = 50;
+
+  const start = (page - 1) * limit;
+  const end = page * limit;
+
+  const results = {
+    previews: fileList.previews.slice(start, end),
+    thumbnails: fileList.thumbnails.slice(start, end),
+    start,
+    end,
+    pages: Math.ceil(fileList.previews.length / limit),
+  };
+
+  res.send(results);
 });
 
 async function processDir(inDir, outDir) {
@@ -54,6 +72,15 @@ async function processDir(inDir, outDir) {
 
     console.log('Getting file list, this might take some time...\n');
     const files = glob.sync(inDir + '/**/*.CR2');
+
+    // Generate served file list, it is in reverse sorted order which is good with me and my file structure
+    fileList = { previews: [], thumbnails: [] };
+    files.reverse().forEach((f) => {
+      fileList.previews.push(relative(outDir, getPreviewFile(f)));
+      fileList.thumbnails.push(relative(outDir, getThumbnailFile(f)));
+    });
+
+    console.log('Starting batch processing\n');
 
     let estTime = '???';
     let avg = 0;
@@ -84,8 +111,21 @@ async function processDir(inDir, outDir) {
   processing = false;
 }
 
-async function generatePreview(f) {
+function getPreviewFile(f) {
   const previewFile = resolve(f.replace('.CR2', '.jpg').replace(inDir, outDir + '/previews/'));
+
+  return previewFile;
+}
+
+function getThumbnailFile(f) {
+  const previewFile = getPreviewFile(f);
+  const thumbFile = resolve(previewFile.replace(outDir + '/previews/', outDir + '/thumbnails/'));
+
+  return thumbFile;
+}
+
+async function generatePreview(f) {
+  const previewFile = getPreviewFile(f);
 
   try {
     await access(previewFile);
@@ -104,8 +144,8 @@ async function generatePreview(f) {
 }
 
 async function generateThumbnail(f) {
-  const previewFile = resolve(f.replace('.CR2', '.jpg').replace(inDir, outDir + '/previews/'));
-  const thumbFile = resolve(previewFile.replace(outDir + '/previews/', outDir + '/thumbnails/'));
+  const previewFile = getPreviewFile(f);
+  const thumbFile = getThumbnailFile(f);
 
   try {
     await access(thumbFile);
