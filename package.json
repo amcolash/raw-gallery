@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "nodemon",
-    "pm2": "pm2 start ecosystem.config.js"
+    "pm2": "pm2 stop raw-gallery && pm2 start ecosystem.config.js"
   },
   "author": "Andrew McOlash",
   "license": "MIT",

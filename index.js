@@ -30,8 +30,6 @@ const job = new CronJob(
   true
 );
 
-// setTimeout(() => job.start(), 15 * 60 * 1000);
-
 const PORT = process.env.PORT || 8080;
 
 const app = new express();
