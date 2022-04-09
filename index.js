@@ -12,6 +12,7 @@ const importDir = '/media/sdb1/SD Card Imports/';
 
 const inDir = existsSync(importDir) ? importDir : process.argv[2] || join(__dirname, 'test');
 const outDir = process.argv[3] || join(__dirname, 'tmp');
+const debug = process.env.DEBUG !== undefined;
 
 let rootDirs = [];
 let fileList = [];
@@ -85,7 +86,7 @@ async function processDir(inDir, outDir) {
 
     rootDirs = (await readdir(inDir)).filter((f) => extname(f) === '').reverse();
 
-    console.log('Starting batch processing\n');
+    console.log(`Starting batch processing of ${files.length} files\n`);
 
     let estTime = '???';
     let avg = 0;
@@ -96,10 +97,12 @@ async function processDir(inDir, outDir) {
         const progress = `${(((i + 1) / files.length) * 100).toFixed(1)}% [${i + 1}/${files.length}] (est ${estTime})`;
         const start = Date.now();
 
-        console.log(`${progress} ${f}`);
+        const previewInfo = await generatePreview(f);
+        const thumbnailInfo = await generateThumbnail(f);
 
-        await generatePreview(f);
-        await generateThumbnail(f);
+        if (!previewInfo.exists || !thumbnailInfo.exists || debug) console.log(`${progress} ${f}`);
+        if (!previewInfo.exists || debug) console.log(previewInfo.info);
+        if (!thumbnailInfo.exists || debug) console.log(thumbnailInfo.info);
 
         const diff = (Date.now() - start) * (files.length - i);
         if (estTime === '???') avg = diff;
@@ -132,29 +135,38 @@ function getThumbnailFile(f) {
 async function generatePreview(f) {
   const previewFile = getPreviewFile(f);
 
+  let exists = false;
+  let info = '';
   try {
     await access(previewFile);
-    console.log(`  + ${previewFile}`);
+
+    exists = true;
+    info = `  + ${previewFile}`;
   } catch (err) {
     try {
       const command = `exiftool -b -PreviewImage -w "${dirname(previewFile)}/\%f.jpg" "${f}"`;
       await exec(command);
 
-      console.log(`  + ${previewFile}`);
+      info = `  + ${previewFile}`;
     } catch (err) {
-      console.log(`  x ${previewFile}`);
+      info = `  x ${previewFile}`;
       // console.error(err);
     }
   }
+
+  return { exists, info };
 }
 
 async function generateThumbnail(f) {
   const previewFile = getPreviewFile(f);
   const thumbFile = getThumbnailFile(f);
 
+  let exists = false;
+  let info = '';
   try {
     await access(thumbFile);
-    console.log(`  + ${thumbFile}`);
+    exists = true;
+    info = `  + ${thumbFile}`;
   } catch (err) {
     // Just in case, make the output dir
     await mkdir(dirname(thumbFile), { recursive: true });
@@ -163,10 +175,12 @@ async function generateThumbnail(f) {
       const command = `vipsthumbnail "${previewFile}" --size x300 -o "${dirname(thumbFile)}/\%s.jpg"`;
       await exec(command);
 
-      console.log(`  + ${thumbFile}`);
+      info = `  + ${thumbFile}`;
     } catch (err) {
-      console.log(`  x ${thumbFile}`);
+      info = `  x ${thumbFile}`;
       // console.error(err);
     }
   }
+
+  return { exists, info };
 }
