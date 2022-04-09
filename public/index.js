@@ -82,6 +82,7 @@ function createImage(f) {
   const a = document.createElement('a');
   a.setAttribute('href', `/images/${f.preview}`);
   a.setAttribute('data-fslightbox', lightboxName);
+  a.setAttribute('data-type', 'image');
 
   a.appendChild(img);
   imageList.appendChild(a);
