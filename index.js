@@ -101,6 +101,8 @@ async function processDir(inDir, outDir) {
         const thumbnailInfo = await generateThumbnail(f);
 
         if (!previewInfo.exists || !thumbnailInfo.exists || debug) console.log(`${progress} ${f}`);
+        else process.stdout.write('.');
+
         if (!previewInfo.exists || debug) console.log(previewInfo.info);
         if (!thumbnailInfo.exists || debug) console.log(thumbnailInfo.info);
 
