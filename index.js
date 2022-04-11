@@ -100,17 +100,19 @@ async function processDir(inDir, outDir) {
         const previewInfo = await generatePreview(f);
         const thumbnailInfo = await generateThumbnail(f, previewInfo.raw);
 
-        await getMetadata(f, previewInfo.raw || thumbnailInfo.raw);
-
         if (!previewInfo.exists || !thumbnailInfo.exists || debug) console.log(`${progress} ${f}`);
         else process.stdout.write('.');
 
         if (!previewInfo.exists || debug) console.log(previewInfo.info);
         if (!thumbnailInfo.exists || debug) console.log(thumbnailInfo.info);
 
+        await getMetadata(f, previewInfo.raw || thumbnailInfo.raw);
+
         const diff = (Date.now() - start) * (files.length - i);
         if (estTime === '???') avg = diff;
         else avg = 0.95 * avg + 0.05 * diff;
+
+        if (!previewInfo.exists || !thumbnailInfo.exists || debug) console.log(`  Processing took [${Date.now() - start}ms]`);
 
         estTime = new Date(avg).toISOString().substring(11, 19);
       }
@@ -217,10 +219,12 @@ async function getMetadata(f, raw) {
 
     const exifBytes = piexif.dump(exifObj);
 
+    console.log(`  * ${thumbFile}: Updating rotation metadata`);
     const thumb = await readFile(thumbFile, { encoding: 'binary' });
     const modifiedThumb = piexif.insert(exifBytes, thumb);
     await writeFile(thumbFile, modifiedThumb, { encoding: 'binary' });
 
+    console.log(`  * ${previewFile}: Updating rotation metadata`);
     const preview = await readFile(previewFile, { encoding: 'binary' });
     const modifiedPreview = piexif.insert(exifBytes, preview);
     await writeFile(previewFile, modifiedPreview, { encoding: 'binary' });
