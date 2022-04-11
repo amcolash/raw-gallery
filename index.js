@@ -5,6 +5,7 @@ const glob = require('glob');
 const { existsSync } = require('fs');
 const cr2Raw = require('cr2-raw');
 const piexif = require('piexifjs');
+const exifr = require('exifr');
 
 console.log(`All args: ${process.argv}`);
 
@@ -106,7 +107,7 @@ async function processDir(inDir, outDir) {
         if (!previewInfo.exists || debug) console.log(previewInfo.info);
         if (!thumbnailInfo.exists || debug) console.log(thumbnailInfo.info);
 
-        await getMetadata(f, previewInfo.raw || thumbnailInfo.raw);
+        await getMetadata(f);
 
         const diff = (Date.now() - start) * (files.length - i);
         if (estTime === '???') avg = diff;
@@ -193,27 +194,17 @@ async function generateThumbnail(f, raw) {
   return { exists, info };
 }
 
-async function getMetadata(f, raw) {
-  if (!raw) raw = cr2Raw(f);
+async function getMetadata(f) {
+  const meta = await exifr.parse(f, { pick: ['Orientation', 'DateTimeOriginal'], translateValues: false });
+  fileList[f].meta = meta;
 
-  const Orientation = {
-    tagId: 0x0112,
-    tagType: 4,
-    ifd: 0,
-  };
-
-  const dateTaken = raw.fetchMeta(cr2Raw.meta.DateTaken);
-  const imgOrientation = raw.fetchMeta(Orientation);
-
-  fileList[f].dateTaken = dateTaken;
-
-  if (imgOrientation !== 1) {
+  if (meta.Orientation !== 1) {
     const thumbFile = getThumbnailFile(f);
     const previewFile = getPreviewFile(f);
 
     const exifObj = {
       '0th': {
-        [piexif.ImageIFD.Orientation]: imgOrientation,
+        [piexif.ImageIFD.Orientation]: meta.Orientation,
       },
     };
 
