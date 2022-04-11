@@ -238,7 +238,7 @@ async function getMetadata(f) {
   metadata[f] = meta;
   metadataCounter++;
 
-  if (metadataCounter > 50) await writeMetadata();
+  if (metadataCounter >= 200) await writeMetadata();
 
   const exifObj = {
     '0th': {
