@@ -53,15 +53,19 @@ app.get('/imagelist', (req, res) => {
   const filtered = filter ? Object.values(fileList).filter((f) => f.preview.indexOf(filter) !== -1) : Object.values(fileList);
 
   const results = {
-    images: filtered.slice(start, end),
     start,
     end,
-    rootDirs,
     pages: Math.ceil(filtered.length / limit),
     progress,
+    images: filtered.slice(start, end),
+    rootDirs,
   };
 
   res.send(results);
+});
+
+app.get('/progress', (req, res) => {
+  res.send(progress);
 });
 
 async function processDir(inDir, outDir) {
