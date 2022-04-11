@@ -13,12 +13,15 @@ const importDir = '/media/sdb1/SD Card Imports/';
 
 const inDir = existsSync(importDir) ? importDir : process.argv[2] || join(__dirname, 'test');
 const outDir = process.argv[3] || join(__dirname, 'tmp');
+const metadataFile = join(outDir, '/data.json');
 const debug = process.env.DEBUG !== undefined;
 
 let rootDirs = [];
 let fileList = [];
 let processing = false;
 let progress;
+let metadata = loadMetadata();
+let metadataCounter = 0;
 
 const CronJob = require('cron').CronJob;
 const job = new CronJob(
@@ -57,7 +60,9 @@ app.get('/imagelist', (req, res) => {
     end,
     pages: Math.ceil(filtered.length / limit),
     progress,
-    images: filtered.slice(start, end),
+    images: filtered.slice(start, end).map((i) => {
+      return { ...i, meta: metadata[i.raw] };
+    }),
     rootDirs,
   };
 
@@ -88,7 +93,7 @@ async function processDir(inDir, outDir) {
     // Generate served file list, it is in reverse sorted order which is good with me and my file structure
     fileList = {};
     files.reverse().forEach((f) => {
-      fileList[f] = { preview: relative(outDir, getPreviewFile(f)), thumbnail: relative(outDir, getThumbnailFile(f)) };
+      fileList[f] = { raw: f, preview: relative(outDir, getPreviewFile(f)), thumbnail: relative(outDir, getThumbnailFile(f)) };
     });
 
     rootDirs = (await readdir(inDir)).filter((f) => extname(f) === '').reverse();
@@ -104,7 +109,7 @@ async function processDir(inDir, outDir) {
         progress = `${(((i + 1) / files.length) * 100).toFixed(1)}% [${i + 1}/${files.length}] (est ${estTime})`;
         const start = Date.now();
 
-        const exif = fileList[f].meta || (await getMetadata(f));
+        const exif = metadata[f] || (await getMetadata(f));
 
         const previewInfo = await generatePreview(f, undefined, exif);
         const thumbnailInfo = await generateThumbnail(f, previewInfo.raw, exif);
@@ -124,6 +129,8 @@ async function processDir(inDir, outDir) {
         estTime = new Date(avg).toISOString().substring(11, 19);
       }
     }
+
+    if (metadataCounter > 0) await writeMetadata();
   } catch (err) {
     console.error(err);
   }
@@ -205,9 +212,33 @@ async function generateThumbnail(f, raw, exif) {
   return { exists, info };
 }
 
+async function loadMetadata() {
+  try {
+    await access(metadataFile);
+    metadata = JSON.parse(await readFile(metadataFile));
+  } catch (err) {
+    // Do nothing if metadata file does not exist
+  }
+}
+
+async function writeMetadata() {
+  console.log('\nWriting metadata');
+
+  try {
+    await writeFile(metadataFile, JSON.stringify(metadata));
+  } catch (err) {
+    console.error('Error writing metadata', err);
+  }
+
+  metadataCounter = 0;
+}
+
 async function getMetadata(f) {
   const meta = await exifr.parse(f, { pick: ['Orientation', 'DateTimeOriginal'], translateValues: false });
-  fileList[f].meta = meta;
+  metadata[f] = meta;
+  metadataCounter++;
+
+  if (metadataCounter > 50) await writeMetadata();
 
   const exifObj = {
     '0th': {
