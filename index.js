@@ -98,16 +98,16 @@ async function processDir(inDir, outDir) {
         const progress = `${(((i + 1) / files.length) * 100).toFixed(1)}% [${i + 1}/${files.length}] (est ${estTime})`;
         const start = Date.now();
 
-        const previewInfo = await generatePreview(f);
-        const thumbnailInfo = await generateThumbnail(f, previewInfo.raw);
+        const exif = await getMetadata(f);
+
+        const previewInfo = await generatePreview(f, undefined, exif);
+        const thumbnailInfo = await generateThumbnail(f, previewInfo.raw, exif);
 
         if (!previewInfo.exists || !thumbnailInfo.exists || debug) console.log(`${progress} ${f}`);
         else process.stdout.write('.');
 
         if (!previewInfo.exists || debug) console.log(previewInfo.info);
         if (!thumbnailInfo.exists || debug) console.log(thumbnailInfo.info);
-
-        await getMetadata(f);
 
         const diff = (Date.now() - start) * (files.length - i);
         if (estTime === '???') avg = diff;
@@ -139,12 +139,11 @@ function getThumbnailFile(f) {
   return thumbFile;
 }
 
-async function generatePreview(f) {
+async function generatePreview(f, raw, exif) {
   const previewFile = getPreviewFile(f);
 
   let exists = false;
   let info = '';
-  let raw;
   try {
     await access(previewFile);
 
@@ -152,10 +151,13 @@ async function generatePreview(f) {
     info = `  + ${previewFile}`;
   } catch (err) {
     try {
+      // Just in case, make the output dir
       await mkdir(dirname(previewFile), { recursive: true });
 
-      raw = cr2Raw(f);
-      await writeFile(previewFile, raw.previewImage());
+      if (!raw) raw = cr2Raw(f);
+
+      const modifiedPreview = piexif.insert(exif, raw.previewImage().toString('binary'));
+      await writeFile(previewFile, modifiedPreview, { encoding: 'binary' });
 
       info = `  + ${previewFile}`;
     } catch (err) {
@@ -167,7 +169,7 @@ async function generatePreview(f) {
   return { exists, info, raw };
 }
 
-async function generateThumbnail(f, raw) {
+async function generateThumbnail(f, raw, exif) {
   const thumbFile = getThumbnailFile(f);
 
   let exists = false;
@@ -177,12 +179,14 @@ async function generateThumbnail(f, raw) {
     exists = true;
     info = `  + ${thumbFile}`;
   } catch (err) {
-    // Just in case, make the output dir
-    await mkdir(dirname(thumbFile), { recursive: true });
-
     try {
+      // Just in case, make the output dir
+      await mkdir(dirname(thumbFile), { recursive: true });
+
       if (!raw) raw = cr2Raw(f);
-      await writeFile(thumbFile, raw.thumbnailImage());
+
+      const modifiedThumb = piexif.insert(exif, raw.thumbnailImage().toString('binary'));
+      await writeFile(thumbFile, modifiedThumb, { encoding: 'binary' });
 
       info = `  + ${thumbFile}`;
     } catch (err) {
@@ -198,26 +202,16 @@ async function getMetadata(f) {
   const meta = await exifr.parse(f, { pick: ['Orientation', 'DateTimeOriginal'], translateValues: false });
   fileList[f].meta = meta;
 
-  if (meta.Orientation !== 1) {
-    const thumbFile = getThumbnailFile(f);
-    const previewFile = getPreviewFile(f);
+  const exifObj = {
+    '0th': {
+      [piexif.ImageIFD.Orientation]: meta.Orientation,
+    },
+    exif: {
+      [piexif.ImageIFD.DateTime]: meta.DateTimeOriginal,
+    },
+  };
 
-    const exifObj = {
-      '0th': {
-        [piexif.ImageIFD.Orientation]: meta.Orientation,
-      },
-    };
+  const exifBytes = piexif.dump(exifObj);
 
-    const exifBytes = piexif.dump(exifObj);
-
-    console.log(`  * ${thumbFile}: Updating rotation metadata`);
-    const thumb = await readFile(thumbFile, { encoding: 'binary' });
-    const modifiedThumb = piexif.insert(exifBytes, thumb);
-    await writeFile(thumbFile, modifiedThumb, { encoding: 'binary' });
-
-    console.log(`  * ${previewFile}: Updating rotation metadata`);
-    const preview = await readFile(previewFile, { encoding: 'binary' });
-    const modifiedPreview = piexif.insert(exifBytes, preview);
-    await writeFile(previewFile, modifiedPreview, { encoding: 'binary' });
-  }
+  return exifBytes;
 }
