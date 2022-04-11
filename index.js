@@ -18,6 +18,7 @@ const debug = process.env.DEBUG !== undefined;
 let rootDirs = [];
 let fileList = [];
 let processing = false;
+let progress;
 
 const CronJob = require('cron').CronJob;
 const job = new CronJob(
@@ -57,6 +58,7 @@ app.get('/imagelist', (req, res) => {
     end,
     rootDirs,
     pages: Math.ceil(filtered.length / limit),
+    progress,
   };
 
   res.send(results);
@@ -95,7 +97,7 @@ async function processDir(inDir, outDir) {
     for (let i = 0; i < files.length; i++) {
       const f = files[i];
       if (f.toLowerCase().indexOf('.cr2') !== -1) {
-        const progress = `${(((i + 1) / files.length) * 100).toFixed(1)}% [${i + 1}/${files.length}] (est ${estTime})`;
+        progress = `${(((i + 1) / files.length) * 100).toFixed(1)}% [${i + 1}/${files.length}] (est ${estTime})`;
         const start = Date.now();
 
         const exif = fileList[f].meta || (await getMetadata(f));
@@ -103,7 +105,7 @@ async function processDir(inDir, outDir) {
         const previewInfo = await generatePreview(f, undefined, exif);
         const thumbnailInfo = await generateThumbnail(f, previewInfo.raw, exif);
 
-        if (!previewInfo.exists || !thumbnailInfo.exists || debug) console.log(`${progress} ${f}`);
+        if (!previewInfo.exists || !thumbnailInfo.exists || debug || !process.stdout.clearLine) console.log(`${progress} ${f}`);
         else process.stdout.write('.');
 
         if (!previewInfo.exists || debug) console.log(previewInfo.info);
@@ -124,6 +126,7 @@ async function processDir(inDir, outDir) {
 
   console.log('\nProcessing Complete!');
   processing = false;
+  progress = undefined;
 }
 
 function getPreviewFile(f) {
