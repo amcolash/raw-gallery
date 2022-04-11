@@ -1,10 +1,10 @@
 const express = require('express');
 const { join, dirname, relative, resolve, extname } = require('path');
-const { promisify } = require('util');
-const exec = promisify(require('child_process').exec);
-const { mkdir, access, readdir } = require('fs/promises');
+const { mkdir, access, readdir, readFile, writeFile } = require('fs/promises');
 const glob = require('glob');
 const { existsSync } = require('fs');
+const cr2Raw = require('cr2-raw');
+const piexif = require('piexifjs');
 
 console.log(`All args: ${process.argv}`);
 
@@ -48,7 +48,7 @@ app.get('/imagelist', (req, res) => {
   const start = (page - 1) * limit;
   const end = page * limit;
 
-  const filtered = filter ? fileList.filter((f) => f.preview.indexOf(filter) !== -1) : fileList;
+  const filtered = filter ? Object.values(fileList).filter((f) => f.preview.indexOf(filter) !== -1) : Object.values(fileList);
 
   const results = {
     images: filtered.slice(start, end),
@@ -79,9 +79,9 @@ async function processDir(inDir, outDir) {
     const files = glob.sync(inDir + '/**/*.CR2');
 
     // Generate served file list, it is in reverse sorted order which is good with me and my file structure
-    fileList = [];
+    fileList = {};
     files.reverse().forEach((f) => {
-      fileList.push({ preview: relative(outDir, getPreviewFile(f)), thumbnail: relative(outDir, getThumbnailFile(f)) });
+      fileList[f] = { preview: relative(outDir, getPreviewFile(f)), thumbnail: relative(outDir, getThumbnailFile(f)) };
     });
 
     rootDirs = (await readdir(inDir)).filter((f) => extname(f) === '').reverse();
@@ -98,7 +98,9 @@ async function processDir(inDir, outDir) {
         const start = Date.now();
 
         const previewInfo = await generatePreview(f);
-        const thumbnailInfo = await generateThumbnail(f);
+        const thumbnailInfo = await generateThumbnail(f, previewInfo.raw);
+
+        await getMetadata(f, previewInfo.raw || thumbnailInfo.raw);
 
         if (!previewInfo.exists || !thumbnailInfo.exists || debug) console.log(`${progress} ${f}`);
         else process.stdout.write('.');
@@ -139,6 +141,7 @@ async function generatePreview(f) {
 
   let exists = false;
   let info = '';
+  let raw;
   try {
     await access(previewFile);
 
@@ -146,21 +149,22 @@ async function generatePreview(f) {
     info = `  + ${previewFile}`;
   } catch (err) {
     try {
-      const command = `exiftool -b -PreviewImage -w "${dirname(previewFile)}/\%f.jpg" "${f}"`;
-      await exec(command);
+      await mkdir(dirname(previewFile), { recursive: true });
+
+      raw = cr2Raw(f);
+      await writeFile(previewFile, raw.previewImage());
 
       info = `  + ${previewFile}`;
     } catch (err) {
       info = `  x ${previewFile}`;
-      // console.error(err);
+      console.error(err);
     }
   }
 
-  return { exists, info };
+  return { exists, info, raw };
 }
 
-async function generateThumbnail(f) {
-  const previewFile = getPreviewFile(f);
+async function generateThumbnail(f, raw) {
   const thumbFile = getThumbnailFile(f);
 
   let exists = false;
@@ -174,15 +178,51 @@ async function generateThumbnail(f) {
     await mkdir(dirname(thumbFile), { recursive: true });
 
     try {
-      const command = `vipsthumbnail "${previewFile}" --size x300 -o "${dirname(thumbFile)}/\%s.jpg"`;
-      await exec(command);
+      if (!raw) raw = cr2Raw(f);
+      await writeFile(thumbFile, raw.thumbnailImage());
 
       info = `  + ${thumbFile}`;
     } catch (err) {
       info = `  x ${thumbFile}`;
-      // console.error(err);
+      console.error(err);
     }
   }
 
   return { exists, info };
+}
+
+async function getMetadata(f, raw) {
+  if (!raw) raw = cr2Raw(f);
+
+  const Orientation = {
+    tagId: 0x0112,
+    tagType: 4,
+    ifd: 0,
+  };
+
+  const dateTaken = raw.fetchMeta(cr2Raw.meta.DateTaken);
+  const imgOrientation = raw.fetchMeta(Orientation);
+
+  fileList[f].dateTaken = dateTaken;
+
+  if (imgOrientation !== 1) {
+    const thumbFile = getThumbnailFile(f);
+    const previewFile = getPreviewFile(f);
+
+    const exifObj = {
+      '0th': {
+        [piexif.ImageIFD.Orientation]: imgOrientation,
+      },
+    };
+
+    const exifBytes = piexif.dump(exifObj);
+
+    const thumb = await readFile(thumbFile, { encoding: 'binary' });
+    const modifiedThumb = piexif.insert(exifBytes, thumb);
+    await writeFile(thumbFile, modifiedThumb, { encoding: 'binary' });
+
+    const preview = await readFile(previewFile, { encoding: 'binary' });
+    const modifiedPreview = piexif.insert(exifBytes, preview);
+    await writeFile(previewFile, modifiedPreview, { encoding: 'binary' });
+  }
 }
