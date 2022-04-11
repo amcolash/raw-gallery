@@ -98,7 +98,7 @@ async function processDir(inDir, outDir) {
         const progress = `${(((i + 1) / files.length) * 100).toFixed(1)}% [${i + 1}/${files.length}] (est ${estTime})`;
         const start = Date.now();
 
-        const exif = await getMetadata(f);
+        const exif = fileList[f].meta || (await getMetadata(f));
 
         const previewInfo = await generatePreview(f, undefined, exif);
         const thumbnailInfo = await generateThumbnail(f, previewInfo.raw, exif);
