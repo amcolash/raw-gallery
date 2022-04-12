@@ -14,6 +14,9 @@ function loadPage(page) {
   const filterEl = document.querySelector('#filters');
   const filter = filterEl.value;
 
+  const button = document.querySelector('.buttonContainer');
+  button.disabled = true;
+
   fetch(`${server}/imagelist?page=${page}${filter !== 'undefined' ? `&filter=${filter}` : ''}`)
     .then((res) => res.json())
     .then((data) => {
@@ -51,7 +54,7 @@ function loadPage(page) {
         console.log('open');
       };
 
-      const button = document.querySelector('.buttonContainer');
+      button.disabled = false;
       if (data.pages <= page + 1) {
         hasMore = false;
         button.style.display = 'none';
@@ -73,6 +76,8 @@ function loadMore() {
     page++;
     loadPage(page);
   }
+
+  if (page === 1) loadMore();
 }
 
 function createImage(f) {
