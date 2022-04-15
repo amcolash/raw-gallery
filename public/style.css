@@ -23,9 +23,31 @@ button {
   padding: 1rem;
 }
 
+.top {
+  display: flex;
+  justify-content: space-between;
+}
+
+.progress {
+  display: flex;
+  align-items: center;
+}
+
+.progress img {
+  height: 1.6em;
+  margin-right: 0.25em;
+}
+
+.wrapper {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
 .imageList a img {
   margin: 0.25rem;
   border: 1px solid var(--dark);
+  height: 165px;
 }
 
 .buttonContainer {

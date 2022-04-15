@@ -2,6 +2,7 @@ let page = 1;
 let hasMore = true;
 let lastLoadTime = 0;
 let lastRoot;
+let imageWrapper;
 
 const server = window.location.origin;
 
@@ -25,9 +26,18 @@ function loadPage(page) {
         const root = relative.substring(0, relative.indexOf('/')) || '/';
 
         if (lastRoot !== root) {
+          const section = document.createElement('div');
+
+          imageWrapper = document.createElement('div');
+          imageWrapper.classList.add('wrapper');
+
           const header = document.createElement('h3');
           header.innerText = root;
-          imageList.appendChild(header);
+
+          section.appendChild(header);
+          section.appendChild(imageWrapper);
+
+          imageList.appendChild(section);
 
           lastRoot = root;
         }
@@ -50,14 +60,22 @@ function loadPage(page) {
       }
 
       refreshFsLightbox();
-      fsLightboxInstances[lightboxName].props.onOpen = () => {
-        console.log('open');
-      };
+      if (fsLightboxInstances[lightboxName])
+        fsLightboxInstances[lightboxName].props.onOpen = () => {
+          console.log('open');
+        };
 
       button.disabled = false;
-      if (data.pages <= page + 1) {
+      if (data.pages <= page + 1 || data.images.length === 0) {
         hasMore = false;
         button.style.display = 'none';
+      }
+
+      if (data.images.length === 0) {
+        const noImages = document.createElement('div');
+        noImages.innerText = 'No Images';
+
+        imageList.appendChild(noImages);
       }
     });
 }
@@ -81,20 +99,44 @@ function loadMore() {
 }
 
 function createImage(f) {
-  const img = document.createElement('img');
-  img.src = `/images/${f.thumbnail}`;
+  const container = document.createElement('div');
 
   const a = document.createElement('a');
   a.setAttribute('href', `/images/${f.preview}`);
   a.setAttribute('data-fslightbox', lightboxName);
   a.setAttribute('data-type', 'image');
 
+  const img = document.createElement('img');
+  img.src = `/images/${f.thumbnail}`;
+
+  container.appendChild(a);
   a.appendChild(img);
-  imageList.appendChild(a);
+
+  imageWrapper.appendChild(container);
+}
+
+function updateProgress() {
+  fetch(`${server}/progress`)
+    .then((res) => res.json())
+    .then((data) => {
+      const progressEl = document.querySelector('.progress');
+      const textEl = progressEl.querySelector('.text');
+
+      if (data.processing) {
+        progressEl.style.display = undefined;
+        textEl.innerText = data.progress;
+
+        setTimeout(updateProgress, 5000);
+      } else {
+        progressEl.style.display = 'none';
+        textEl.innerText = '';
+      }
+    });
 }
 
 window.addEventListener('load', function () {
   loadPage(page);
+  updateProgress();
 });
 
 window.addEventListener('scroll', function () {

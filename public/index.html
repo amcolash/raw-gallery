@@ -10,8 +10,17 @@
   </head>
   <body>
     <div class="root">
-      <label>Folder</label>
-      <select id="filters" onchange="updateFilter()"></select>
+      <div class="top">
+        <div class="folder">
+          <label>Folder</label>
+          <select id="filters" onchange="updateFilter()"></select>
+        </div>
+
+        <div class="progress">
+          <img src="loading.svg" alt="" />
+          <div class="text"></div>
+        </div>
+      </div>
 
       <div class="imageList"></div>
       <div class="buttonContainer">

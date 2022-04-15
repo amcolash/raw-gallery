@@ -70,7 +70,7 @@ app.get('/imagelist', (req, res) => {
 });
 
 app.get('/progress', (req, res) => {
-  res.send(progress);
+  res.send({ progress, processing });
 });
 
 async function processDir(inDir, outDir) {
