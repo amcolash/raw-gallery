@@ -17,7 +17,7 @@ const metadataFile = join(outDir, '/data.json');
 const debug = process.env.DEBUG !== undefined;
 
 let rootDirs = [];
-let fileList = [];
+let fileList = {};
 let processing = false;
 let progress;
 let metadata = loadMetadata();
@@ -44,6 +44,7 @@ const app = new express();
 app.listen(PORT);
 app.use(express.static('public'));
 app.use('/images', express.static(outDir));
+app.use('/raw', express.static(inDir));
 
 app.get('/imagelist', (req, res) => {
   const page = Math.max(1, req.query.page || 1);
@@ -51,18 +52,20 @@ app.get('/imagelist', (req, res) => {
   const filter = req.query.filter;
 
   const start = (page - 1) * limit;
-  const end = page * limit;
+  const end = Math.min(page * limit, Object.values(fileList).length - 1);
 
-  const filtered = filter ? Object.values(fileList).filter((f) => f.preview.indexOf(filter) !== -1) : Object.values(fileList);
+  const sorted = Object.values(fileList).sort((a, b) => b.preview.localeCompare(a.preview));
+  const filtered = filter ? sorted.filter((f) => f.preview.indexOf(filter) !== -1) : sorted;
 
   const results = {
     start,
     end,
     pages: Math.ceil(filtered.length / limit),
     progress,
-    images: filtered.slice(start, end).map((i) => {
+    images: filtered.slice(start, end + 1).map((i) => {
       return { ...i, meta: metadata[i.raw] };
     }),
+    hasMore: end !== Object.values(fileList).length - 1,
     rootDirs,
   };
 
@@ -89,11 +92,19 @@ async function processDir(inDir, outDir) {
 
     console.log('Getting file list, this might take some time...\n');
     const files = glob.sync(inDir + '/**/*.CR2');
+    const videos = glob.sync(inDir + '/**/*.mp4');
 
     // Generate served file list, it is in reverse sorted order which is good with me and my file structure
     fileList = {};
-    files.reverse().forEach((f) => {
+    files.forEach((f) => {
       fileList[f] = { raw: f, preview: relative(outDir, getPreviewFile(f)), thumbnail: relative(outDir, getThumbnailFile(f)) };
+    });
+
+    videos.forEach((v) => {
+      fileList[v] = {
+        preview: relative(outDir, getPreviewFile(v)),
+        video: relative(outDir, getPreviewFile(v)).replace('previews/', 'raw/'),
+      };
     });
 
     rootDirs = (await readdir(inDir)).filter((f) => extname(f) === '').reverse();

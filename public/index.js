@@ -42,7 +42,8 @@ function loadPage(page) {
           lastRoot = root;
         }
 
-        createImage(t);
+        if (t.video) createVideo(t);
+        else createImage(t);
       });
 
       if (filterEl.childNodes.length === 0) {
@@ -94,8 +95,6 @@ function loadMore() {
     page++;
     loadPage(page);
   }
-
-  if (page === 1) loadMore();
 }
 
 function createImage(f) {
@@ -111,7 +110,33 @@ function createImage(f) {
 
   container.appendChild(a);
   a.appendChild(img);
+  imageWrapper.appendChild(container);
+}
 
+function createVideo(f) {
+  const container = document.createElement('div');
+
+  const a = document.createElement('a');
+  a.setAttribute('href', f.video);
+  a.setAttribute('data-fslightbox', lightboxName);
+  a.setAttribute('data-type', 'video');
+  a.setAttribute('data-autoplay', true);
+
+  const video = document.createElement('video');
+  video.src = f.video;
+
+  const icon = document.createElement('img');
+  icon.className = 'icon';
+  icon.src = '/play.svg';
+
+  const iconWrapper = document.createElement('div');
+  iconWrapper.className = 'wrapper';
+  iconWrapper.appendChild(icon);
+
+  a.appendChild(video);
+  a.appendChild(iconWrapper);
+
+  container.appendChild(a);
   imageWrapper.appendChild(container);
 }
 
