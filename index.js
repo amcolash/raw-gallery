@@ -6,6 +6,7 @@ const { existsSync } = require('fs');
 const cr2Raw = require('cr2-raw');
 const piexif = require('piexifjs');
 const exifr = require('exifr');
+const { execSync } = require('child_process');
 
 console.log(`All args: ${process.argv}`);
 
@@ -40,6 +41,7 @@ const job = new CronJob(
 
 const PORT = process.env.PORT || 8080;
 
+console.log(`Starting server on http://localhost:${PORT}`);
 const app = new express();
 app.listen(PORT);
 app.use(express.static('public'));
@@ -91,33 +93,34 @@ async function processDir(inDir, outDir) {
     await mkdir(outDir, { recursive: true });
 
     console.log('Getting file list, this might take some time...\n');
-    const files = glob.sync(inDir + '/**/*.CR2');
-    const videos = glob.sync(inDir + '/**/*.mp4');
+    const photos = glob.sync(inDir + '/**/*.cr2', { nocase: true });
+    const videos = glob.sync(inDir + '/**/*.{mp4,mov}', { nocase: true });
 
-    // Generate served file list, it is in reverse sorted order which is good with me and my file structure
+    // Generate served file list
     fileList = {};
-    files.forEach((f) => {
+    photos.forEach((f) => {
       fileList[f] = { raw: f, preview: relative(outDir, getPreviewFile(f)), thumbnail: relative(outDir, getThumbnailFile(f)) };
     });
 
     videos.forEach((v) => {
+      const ext = extname(v);
       fileList[v] = {
         preview: relative(outDir, getPreviewFile(v)),
-        video: relative(outDir, getPreviewFile(v)).replace('previews/', 'raw/'),
+        video: relative(outDir, getPreviewFile(v)).replace('previews/', 'raw/').replace('.gif', ext).replace('.jpg', ext),
       };
     });
 
     rootDirs = (await readdir(inDir)).filter((f) => extname(f) === '').reverse();
 
-    console.log(`Starting batch processing of ${files.length} files\n`);
+    console.log(`Starting batch processing of ${photos.length} photos\n`);
 
     let estTime = '???';
     let avg = 0;
 
-    for (let i = 0; i < files.length; i++) {
-      const f = files[i];
+    for (let i = 0; i < photos.length; i++) {
+      const f = photos[i];
       if (f.toLowerCase().indexOf('.cr2') !== -1) {
-        progress = `${(((i + 1) / files.length) * 100).toFixed(1)}% [${i + 1}/${files.length}] (est ${estTime})`;
+        progress = `${(((i + 1) / photos.length) * 100).toFixed(1)}% [${i + 1}/${photos.length}] (est ${estTime})`;
         const start = Date.now();
 
         const exif = metadata[f] || (await getMetadata(f));
@@ -131,7 +134,7 @@ async function processDir(inDir, outDir) {
         if (!previewInfo.exists || debug) console.log(previewInfo.info);
         if (!thumbnailInfo.exists || debug) console.log(thumbnailInfo.info);
 
-        const diff = (Date.now() - start) * (files.length - i);
+        const diff = (Date.now() - start) * (photos.length - i);
         if (estTime === '???') avg = diff;
         else avg = 0.95 * avg + 0.05 * diff;
 
@@ -142,17 +145,64 @@ async function processDir(inDir, outDir) {
     }
 
     if (metadataCounter > 0) await writeMetadata();
+
+    console.log(`\n\nStarting batch processing of ${videos.length} videos\n`);
+    estTime = '???';
+    avg = 0;
+    for (let i = 0; i < videos.length; i++) {
+      progress = `${(((i + 1) / videos.length) * 100).toFixed(1)}% [${i + 1}/${videos.length}] (est ${estTime})`;
+      const start = Date.now();
+
+      const f = videos[i];
+      const previewFile = getPreviewFile(videos[i]);
+
+      await mkdir(dirname(previewFile), { recursive: true });
+
+      // if (existsSync(previewFile)) rmSync(previewFile);
+
+      if (!existsSync(previewFile)) {
+        console.log(`${progress} ${f}`);
+
+        const gifDuration = 5;
+        const fps = 6;
+        const desiredFrames = gifDuration * fps;
+
+        // Not sure if this is the best way to do this.. Maybe need a more efficient way
+        // const command = `ffmpeg -i ${f} -framerate 1 -vf "thumbnail,scale=320:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse,settb=1/2,setpts=N" -frames:v ${desiredFrames} ${previewFile}`;
+
+        const command = `ffmpeg -i ${f} -vf "thumbnail" -frames:v 1 ${previewFile}`;
+        const result = execSync(command).toString();
+
+        console.log(result);
+
+        console.log(`  Processing took [${Date.now() - start}ms]`);
+      } else process.stdout.write('.');
+
+      const diff = (Date.now() - start) * (videos.length - i);
+      if (estTime === '???') avg = diff;
+      else avg = 0.95 * avg + 0.05 * diff;
+
+      estTime = new Date(avg).toISOString().substring(11, 19);
+    }
   } catch (err) {
     console.error(err);
   }
 
-  console.log('\nProcessing Complete!');
+  console.log('\n\nProcessing Complete!');
   processing = false;
   progress = undefined;
 }
 
 function getPreviewFile(f) {
-  const previewFile = resolve(f.replace('.CR2', '.jpg').replace(inDir, outDir + '/previews/'));
+  const ext = extname(f);
+  const previewFile = resolve(
+    f
+      .replace(ext, '.jpg')
+      // .replace('.cr2', '.jpg')
+      // .replace('.mp4', '.jpg')
+      // .replace('.mov', '.jpg')
+      .replace(inDir, outDir + '/previews/')
+  );
 
   return previewFile;
 }
@@ -180,6 +230,8 @@ async function generatePreview(f, raw, exif) {
       await mkdir(dirname(previewFile), { recursive: true });
 
       if (!raw) raw = cr2Raw(f);
+
+      console.log(exif);
 
       const modifiedPreview = piexif.insert(exif, raw.previewImage().toString('binary'));
       await writeFile(previewFile, modifiedPreview, { encoding: 'binary' });

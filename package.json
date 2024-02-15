@@ -4,7 +4,7 @@
   "description": "A simple script to generate a gallery of raw photos",
   "main": "index.js",
   "scripts": {
-    "start": "nodemon",
+    "start": "nodemon index.js",
     "pm2": "pm2 stop raw-gallery && pm2 start ecosystem.config.js"
   },
   "author": "Andrew McOlash",

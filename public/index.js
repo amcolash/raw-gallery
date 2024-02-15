@@ -122,8 +122,8 @@ function createVideo(f) {
   a.setAttribute('data-type', 'video');
   a.setAttribute('data-autoplay', true);
 
-  const video = document.createElement('video');
-  video.src = f.video;
+  const videoThumb = document.createElement('img');
+  videoThumb.src = `/images/${f.preview}`;
 
   const icon = document.createElement('img');
   icon.className = 'icon';
@@ -133,7 +133,7 @@ function createVideo(f) {
   iconWrapper.className = 'wrapper';
   iconWrapper.appendChild(icon);
 
-  a.appendChild(video);
+  a.appendChild(videoThumb);
   a.appendChild(iconWrapper);
 
   container.appendChild(a);
