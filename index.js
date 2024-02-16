@@ -119,7 +119,8 @@ async function processDir(inDir, outDir) {
 
     for (let i = 0; i < photos.length; i++) {
       const f = photos[i];
-      if (f.toLowerCase().indexOf('.cr2') !== -1) {
+      const ext = extname(f).toLowerCase();
+      if (ext === '.cr2') {
         progress = `${(((i + 1) / photos.length) * 100).toFixed(1)}% [${i + 1}/${photos.length}] (est ${estTime})`;
         const start = Date.now();
 
@@ -239,7 +240,7 @@ async function generatePreview(f, raw, exif) {
       info = `  + ${previewFile}`;
     } catch (err) {
       info = `  x ${previewFile}`;
-      console.error(err);
+      console.error(f, err);
     }
   }
 
@@ -268,7 +269,7 @@ async function generateThumbnail(f, raw, exif) {
       info = `  + ${thumbFile}`;
     } catch (err) {
       info = `  x ${thumbFile}`;
-      console.error(err);
+      console.error(f, err);
     }
   }
 
@@ -277,8 +278,8 @@ async function generateThumbnail(f, raw, exif) {
 
 async function loadMetadata() {
   try {
-    await access(metadataFile);
-    metadata = JSON.parse(await readFile(metadataFile));
+    const data = await readFile(metadataFile);
+    metadata = JSON.parse(data.toString());
   } catch (err) {
     // Do nothing if metadata file does not exist
   }
