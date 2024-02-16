@@ -92,7 +92,7 @@ async function processDir(inDir, outDir) {
     await mkdir(inDir, { recursive: true });
     await mkdir(outDir, { recursive: true });
 
-    console.log('Getting file list, this might take some time...\n');
+    console.log('Getting file lists, this might take some time...\n');
     const photos = glob.sync(inDir + '/**/*.cr2', { nocase: true });
     const videos = glob.sync(inDir + '/**/*.{mp4,mov}', { nocase: true });
 
@@ -171,7 +171,7 @@ async function processDir(inDir, outDir) {
         // Not sure if this is the best way to do this.. Maybe need a more efficient way
         // const command = `ffmpeg -i ${f} -framerate 1 -vf "thumbnail,scale=320:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse,settb=1/2,setpts=N" -frames:v ${desiredFrames} ${previewFile}`;
 
-        const command = `ffmpeg -i "${f}" -vf "thumbnail" -frames:v 1 "${previewFile}"`;
+        const command = `ffmpeg -hide_banner -loglevel error -ss 00:00:05 -i "${f}" -frames:v 1 -vf "scale=320:-1" "${previewFile}"`;
         const result = execSync(command).toString();
 
         console.log(result);
