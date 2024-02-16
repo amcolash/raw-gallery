@@ -171,7 +171,7 @@ async function processDir(inDir, outDir) {
         // Not sure if this is the best way to do this.. Maybe need a more efficient way
         // const command = `ffmpeg -i ${f} -framerate 1 -vf "thumbnail,scale=320:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse,settb=1/2,setpts=N" -frames:v ${desiredFrames} ${previewFile}`;
 
-        const command = `ffmpeg -i ${f} -vf "thumbnail" -frames:v 1 ${previewFile}`;
+        const command = `ffmpeg -i "${f}" -vf "thumbnail" -frames:v 1 "${previewFile}"`;
         const result = execSync(command).toString();
 
         console.log(result);
@@ -298,22 +298,26 @@ async function writeMetadata() {
 }
 
 async function getMetadata(f) {
-  const meta = await exifr.parse(f, { pick: ['Orientation', 'DateTimeOriginal'], translateValues: false });
-  metadata[f] = meta;
-  metadataCounter++;
+  try {
+    const meta = await exifr.parse(f, { pick: ['Orientation', 'DateTimeOriginal'], translateValues: false });
+    metadata[f] = meta;
+    metadataCounter++;
 
-  if (metadataCounter >= 200) await writeMetadata();
+    if (metadataCounter >= 200) await writeMetadata();
 
-  const exifObj = {
-    '0th': {
-      [piexif.ImageIFD.Orientation]: meta.Orientation,
-    },
-    exif: {
-      [piexif.ImageIFD.DateTime]: meta.DateTimeOriginal,
-    },
-  };
+    const exifObj = {
+      '0th': {
+        [piexif.ImageIFD.Orientation]: meta.Orientation,
+      },
+      exif: {
+        [piexif.ImageIFD.DateTime]: meta.DateTimeOriginal,
+      },
+    };
 
-  const exifBytes = piexif.dump(exifObj);
+    const exifBytes = piexif.dump(exifObj);
 
-  return exifBytes;
+    return exifBytes;
+  } catch (err) {
+    console.error(f, err);
+  }
 }
