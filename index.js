@@ -172,11 +172,13 @@ async function processDir(inDir, outDir) {
         // const command = `ffmpeg -i ${f} -framerate 1 -vf "thumbnail,scale=320:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse,settb=1/2,setpts=N" -frames:v ${desiredFrames} ${previewFile}`;
 
         const command = `ffmpeg -hide_banner -loglevel error -ss 00:00:05 -i "${f}" -frames:v 1 -vf "scale=320:-1" "${previewFile}"`;
-        const result = execSync(command).toString();
-
-        console.log(result);
-
-        console.log(`  Processing took [${Date.now() - start}ms]`);
+        try {
+          const result = execSync(command).toString();
+          console.log(result);
+          console.log(`  Processing took [${Date.now() - start}ms]`);
+        } catch (err) {
+          console.error(f, err);
+        }
       } else process.stdout.write('.');
 
       const diff = (Date.now() - start) * (videos.length - i);
